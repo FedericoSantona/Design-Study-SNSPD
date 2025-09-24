@@ -1,0 +1,3 @@
+emodeconnection
+numpy
+matplotlib
