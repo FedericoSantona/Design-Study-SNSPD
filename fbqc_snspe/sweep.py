@@ -67,6 +67,7 @@ def run_grid_sweep(
             material_library=material_library,
             mode_solver=mode_solver,
             mesh_kwargs=mesh_kwargs,
+            logger=logger,
         )
         absorptance = calc.sweep(config.wavelengths_nm)
         band_metrics = metrics(

@@ -51,7 +51,6 @@ fbqc_snspe/
   mesh.py                 # Rectilinear meshing utilities
   modes_backend/
     base.py               # Mode, ModeSolver interfaces
-    analytic_solver.py    # Lightweight Gaussian EIM fallback
     empy_solver.py        # Finite-difference TE/TM eigen solver (SciPy)
     empy_native.py        # Native EMpy WGMSolver wrapper
     factory.py            # Backend selection by config
@@ -87,7 +86,7 @@ Annotated YAML file defines:
   - `dual_pass.scheme`: `none`, `top_mirror`, `bottom_dbr`, `u_turn` (currently mirror modeled by effective reflectivity).
 - `sweep`: Wavelength grid, parameter sweeps (cartesian product), target absorptance thresholds.
   - Example uses 8-point grid (2×2×2) and a **trimmed 3-point wavelength set** (1530, 1550, 1570 nm) for quick iterations.
-- `solver`: Backend choice (`empy_fd`, `empy_native`, `analytic`), target modes, solver-specific options.
+- `solver`: Backend choice (`empy_fd`, `empy_native`), target modes, solver-specific options.
 - `mesh`: Discretization parameters (step sizes, lateral span, top/bottom padding).
 
 You can clone this YAML to explore other geometries or modify it directly. Comments explain each parameter and acceptable choices.
@@ -101,7 +100,6 @@ You can clone this YAML to explore other geometries or modify it directly. Comme
 3. **Mode Solving:** For each wavelength and sweep point, `ModeSolverFactory` instantiates the requested backend:
    - `empy_fd`: Finite-difference TE/TM scalar eigenproblems with SciPy (`eigs`). Reconstructs fields (E/H) on the mesh.
    - `empy_native`: Calls EMpy’s `WGMSolver`; requires EMpy installation. Fields come directly from the native solver.
-   - `analytic`: Simple Gaussian field approximations (fast but inaccurate) for trend exploration.
 4. **Absorptance Calculation:** `AbsorptanceCalculator` computes overlap between mode fields and the lossy nanowire region, converts to attenuation (`alpha`), then to absorptance (single-pass or dual-pass reflectivity model).
 5. **Metric Aggregation:** `objectives.metrics` returns max |ΔA| in dB, mean/worst absorptance; `objective` adds penalty if mean < threshold; `pdde_proxy` approximates polarization-dependent detection efficiency spread.
 6. **Sweep Loop:** `sweep.run_grid_sweep` iterates the cartesian product; tqdm tracks overall progress, optionally log each point with `-v` CLI flag. Results accumulate in a pandas DataFrame and write to CSV.
@@ -134,7 +132,6 @@ Edit `config/example_sweep.yaml`:
 
 - `solver.backend: empy_fd` → finite-difference solver (no extra dependencies).
 - `solver.backend: empy_native` → original EMpy solver. Ensure `EMpy` is importable; otherwise the CLI will raise `ModeSolverFactoryError` explaining the missing dependency.
-- `solver.backend: analytic` → quick approximation for exploratory runs.
 - `solver.options.num_modes` controls the number of modes returned. Extra keys like `which` apply only to the finite-difference backend; remove them when switching to `empy_native`.
 
 ### Custom Sweeps
@@ -186,7 +183,7 @@ Tests cover: material interpolation, absorptance pipeline sanity, finite-differe
 - **`ModuleNotFoundError: fbqc_snspe`** → ensure you’re running from repo root and either set `export PYTHONPATH=$PWD` or install via `pip install -e .`.
 - **Solver errors (EMpy)** → backend `empy_native` requires `EMpy`; install `EMpy` or switch to `empy_fd`.
 - **Pydantic warnings** → the code handles both v1 and v2. Ensure `pydantic>=1.10,<3` per requirements.
-- **Slow sweeps** → shrink `sweep_space`, widen mesh steps, or switch to `analytic` backend for first-pass scanning.
+- **Slow sweeps** → shrink `sweep_space`, widen mesh steps, or start with a reduced wavelength grid before refining.
 - **Meep installation issues** → refer to official Meep docs; HDF5/MPI dependencies may be necessary.
 
 ---

@@ -1,6 +1,6 @@
 base_params:  # nominal device definition; serves as the centre point for sweeps
   core:
-    material: NbN  # waveguide core dispersion key (see data/materials)
+    material: SiO2 # waveguide core dispersion key (see data/materials)
     width_nm: 1200  # nominal core width [nm]
     height_nm: 400  # core thickness [nm]
   overlay:
@@ -35,7 +35,7 @@ sweep:
   mean_threshold: 0.85  # minimum average absorptance target across band
   delta_db_limit: 1.0  # maximum |TE−TM| imbalance allowed [dB]
 solver:
-  backend: empy_fd  # options: empy_fd (FD solver), empy_native (EMpy), analytic
+  backend: empy_fd # options: empy_fd (FD solver) or empy_native (EMpy)
   target_modes: 2  # number of modes retained per wavelength
   options:
     num_modes: 2  # TE/TM fundamentals; for `empy_native` this is the only relevant option
@@ -43,5 +43,5 @@ mesh:
   dx_nm: 40  # lateral mesh step [nm]
   dz_nm: 40  # keep <= thinnest layer; coarser values will skip the nanowire entirely
   lateral_span_nm: 2000  # total simulation width [nm]
-  bottom_padding_nm: 200  # extra substrate depth below stack [nm]
-  top_padding_nm: 200  # extra superstrate height above stack [nm]
+  bottom_padding_nm: 100  # extra substrate depth below stack [nm]
+  top_padding_nm: 100  # extra superstrate height above stack [nm]

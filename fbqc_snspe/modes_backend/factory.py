@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Mapping
 
-from .analytic_solver import AnalyticSlabModeSolver
 from .base import ModeSolver
 from .empy_solver import EmpyModeSolver, EmpyOptions
 from .empy_native import EmpyNativeModeSolver, EmpyNativeOptions, EmpyNativeError
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class ModeSolverFactoryError(ValueError):
@@ -24,14 +27,14 @@ def create_mode_solver(config: Mapping[str, Any] | None = None) -> ModeSolver:
 
         ``backend`` (str, optional):
             Name of the backend to instantiate. Supported values are
-            ``"empy"`` (default) and ``"analytic"``.
+            ``"empy"`` (default), ``"empy_fd"``, ``"empy_native"`` and
+            ``"empy_original"``.
         ``target_modes`` (int, optional):
             Number of modes to keep in the returned solver. Defaults to 2.
         ``options`` (mapping, optional):
             Backend-specific options. For ``"empy"`` they are passed to
             :class:`EmpyOptions`.
-        Additional keys are forwarded to backend constructors when supported
-        (e.g. ``lateral_decay_nm`` for the analytic solver).
+        Additional keys are forwarded to backend constructors when supported.
 
     Returns
     -------
@@ -42,9 +45,6 @@ def create_mode_solver(config: Mapping[str, Any] | None = None) -> ModeSolver:
     cfg = dict(config or {})
     backend = str(cfg.pop("backend", "empy")).lower()
     target_modes = int(cfg.pop("target_modes", 2))
-
-    if backend == "analytic":
-        return AnalyticSlabModeSolver(target_modes=target_modes, **cfg)
 
     if backend in {"empy", "empy_fd"}:
         options_cfg = cfg.pop("options", {})

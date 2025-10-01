@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from fbqc_snspe.modes_backend import (
-    AnalyticSlabModeSolver,
     EmpyModeSolver,
     EmpyOptions,
     ModeSolverFactoryError,
@@ -29,18 +28,6 @@ def test_factory_allows_target_modes_and_options():
     assert solver.target_modes == 3
     assert isinstance(solver.options, EmpyOptions)
     assert solver.options.num_modes == 5
-
-
-def test_factory_analytic_backend():
-    solver = create_mode_solver(
-        {
-            "backend": "analytic",
-            "target_modes": 1,
-            "lateral_decay_nm": 500.0,
-        }
-    )
-    assert isinstance(solver, AnalyticSlabModeSolver)
-    assert solver.target_modes == 1
 
 
 def test_factory_invalid_backend_raises():

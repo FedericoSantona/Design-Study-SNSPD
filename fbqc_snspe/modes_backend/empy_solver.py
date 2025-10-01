@@ -9,7 +9,9 @@ modules can import it without changes.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Iterable, List, Sequence
 
 import numpy as np
@@ -24,6 +26,8 @@ NM_TO_M = 1e-9
 NM_TO_UM = 1e-3
 EPS0 = 8.854187817e-12
 C0 = 299_792_458.0
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -41,10 +45,47 @@ class EmpyModeSolver(ModeSolver):
     def __init__(self, options: EmpyOptions | None = None, target_modes: int = 2) -> None:
         super().__init__(target_modes=target_modes)
         self.options = options or EmpyOptions()
+        self._logged_shapes: set[tuple[int, int]] = set()
 
     def solve(self, mesh: RectilinearMesh, wavelength_nm: float) -> ModeSolverResult:
+        nz, nx = mesh.region_indices.shape
+        interior_dof = max(0, (nz - 2) * (nx - 2))
+        shape_key = (nz, nx)
+        if LOGGER.isEnabledFor(logging.INFO) and shape_key not in self._logged_shapes:
+            dx_nm = float(np.mean(np.diff(mesh.x_nm))) if mesh.x_nm.size > 1 else 0.0
+            dz_nm = float(np.mean(np.diff(mesh.z_nm))) if mesh.z_nm.size > 1 else 0.0
+            LOGGER.info(
+                "EmpyModeSolver mesh: shape=%dx%d, interior DOF=%d, dx≈%.2f nm, dz≈%.2f nm, options=%s",
+                nz,
+                nx,
+                interior_dof,
+                dx_nm,
+                dz_nm,
+                self.options,
+            )
+            self._logged_shapes.add(shape_key)
+
+        te_start = perf_counter()
         te_modes = _solve_te_modes(mesh, wavelength_nm, self.options)
+        te_elapsed = perf_counter() - te_start
+        if LOGGER.isEnabledFor(logging.INFO):
+            LOGGER.info(
+                "EmpyModeSolver: TE solve produced %d mode(s) in %.2f s (λ=%.1f nm)",
+                len(te_modes),
+                te_elapsed,
+                wavelength_nm,
+            )
+
+        tm_start = perf_counter()
         tm_modes = _solve_tm_modes(mesh, wavelength_nm, self.options)
+        tm_elapsed = perf_counter() - tm_start
+        if LOGGER.isEnabledFor(logging.INFO):
+            LOGGER.info(
+                "EmpyModeSolver: TM solve produced %d mode(s) in %.2f s (λ=%.1f nm)",
+                len(tm_modes),
+                tm_elapsed,
+                wavelength_nm,
+            )
 
         # Interleave TE/TM fundamentals so downstream code can grab them easily.
         modes: List[Mode] = []

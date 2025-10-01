@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Dict, Iterable
 
 import numpy as np
@@ -10,7 +12,7 @@ import numpy as np
 from .geometry import DeviceParams
 from .materials import MaterialLibrary
 from .mesh import CrossSectionMesher
-from .modes_backend import AnalyticSlabModeSolver, Mode, ModeSolver
+from .modes_backend import EmpyModeSolver, Mode, ModeSolver
 
 
 @dataclass(slots=True)
@@ -75,11 +77,13 @@ class AbsorptanceCalculator:
         material_library: MaterialLibrary | None = None,
         mode_solver: ModeSolver | None = None,
         mesh_kwargs: Dict | None = None,
+        logger: logging.Logger | None = None,
     ) -> None:
         self.params = params
         self.material_library = material_library or MaterialLibrary()
-        self.mode_solver = mode_solver or AnalyticSlabModeSolver()
+        self.mode_solver = mode_solver or EmpyModeSolver()
         self.mesh_kwargs = mesh_kwargs or {}
+        self.logger = logger or logging.getLogger(__name__)
         self._mesh = None
 
     @property
@@ -88,6 +92,19 @@ class AbsorptanceCalculator:
             cross_section = self.params.to_cross_section(self.material_library)
             mesher = CrossSectionMesher(cross_section, **self.mesh_kwargs)
             self._mesh = mesher.build()
+            if self.logger.isEnabledFor(logging.INFO):
+                nz, nx = self._mesh.region_indices.shape
+                dx_nm = float(np.mean(np.diff(self._mesh.x_nm))) if self._mesh.x_nm.size > 1 else 0.0
+                dz_nm = float(np.mean(np.diff(self._mesh.z_nm))) if self._mesh.z_nm.size > 1 else 0.0
+                interior_dof = max(0, (nz - 2) * (nx - 2))
+                self.logger.info(
+                    "Built mesh: shape=%dx%d, dx≈%.2f nm, dz≈%.2f nm, interior DOF=%d",
+                    nz,
+                    nx,
+                    dx_nm,
+                    dz_nm,
+                    interior_dof,
+                )
         return self._mesh
 
     def sweep(
@@ -102,8 +119,26 @@ class AbsorptanceCalculator:
         reflectivity = 0.0
         if self.params.dual_pass.enable and self.params.dual_pass.reflectivity is not None:
             reflectivity = self.params.dual_pass.reflectivity
+        if self.logger.isEnabledFor(logging.INFO):
+            self.logger.info(
+                "Starting absorptance sweep: %d wavelength(s), solver=%s, propagation_length=%.2f µm",
+                len(wavelengths),
+                self.mode_solver.__class__.__name__,
+                length_um,
+            )
         for idx, wl in enumerate(wavelengths):
+            solve_start = perf_counter()
             result = self.mode_solver.solve(self.mesh, wl)
+            solve_elapsed = perf_counter() - solve_start
+            if self.logger.isEnabledFor(logging.INFO):
+                self.logger.info(
+                    "Solved modes (%d/%d) at %.1f nm in %.2f s (modes=%d)",
+                    idx + 1,
+                    len(wavelengths),
+                    wl,
+                    solve_elapsed,
+                    len(result.modes),
+                )
             te_mode = result.polarization_mode("TE") or result.sorted_by_neff()[0]
             tm_mode = result.polarization_mode("TM") or result.sorted_by_neff()[-1]
             alpha_te = compute_overlap(te_mode, self.mesh, nanowire_region, wl)
