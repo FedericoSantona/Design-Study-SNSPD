@@ -135,6 +135,7 @@ Edit `config/example_sweep.yaml`:
 - `solver.backend: empy_fd` → finite-difference solver (no extra dependencies).
 - `solver.backend: empy_native` → original EMpy solver. Ensure `EMpy` is importable; otherwise the CLI will raise `ModeSolverFactoryError` explaining the missing dependency.
 - `solver.backend: analytic` → quick approximation for exploratory runs.
+- `solver.options.num_modes` controls the number of modes returned. Extra keys like `which` apply only to the finite-difference backend; remove them when switching to `empy_native`.
 
 ### Custom Sweeps
 
@@ -144,7 +145,7 @@ Edit `config/example_sweep.yaml`:
 
 ### Performance Tuning
 
-- **Mesh resolution:** The default YAML uses 40 nm × 20 nm grid spacing with trimmed padding. Refine (`dx_nm`, `dz_nm`, padding) only after you identify promising geometries; doubling the resolution roughly quadruples solve time.
+- **Mesh resolution:** The example YAML now uses 30 nm × 5 nm spacing. Keep `dz_nm` at or below your thinnest layer (the nanowire is 7 nm); a coarser vertical step will literally skip that layer and yield zero absorptance. Refine (`dx_nm`, padding) once candidates emerge.
 - **Wavelength samples:** Start with the provided three-point set. Add back intermediate wavelengths once the design narrows.
 - **Eigenmodes:** Keeping `num_modes=2` targets fundamental TE/TM modes. Increase only if you expect higher-order modes to contribute.
 - **Backend choice:** The finite-difference backend (`empy_fd`) is fastest without extra dependencies. Switch to `empy_native` only when you need EMpy’s higher fidelity and have it installed.

@@ -64,7 +64,8 @@ class CrossSectionMesher:
         max_z = max(layer.z_max_nm for layer in finite_layers)
         z_start = min_z - self.bottom_padding_nm
         z_end = max_z + self.top_padding_nm
-        z_nm = np.arange(z_start, z_end + self.dz_nm, self.dz_nm)
+        dz_used = self._effective_dz(finite_layers)
+        z_nm = np.arange(z_start, z_end + dz_used, dz_used)
 
         if self.lateral_span_nm is None:
             width_candidates = [layer.width_nm for layer in finite_layers if np.isfinite(layer.width_nm)]
@@ -81,6 +82,8 @@ class CrossSectionMesher:
             for ix, x in enumerate(x_nm):
                 region_indices[iz, ix] = self._select_region(x, z, regions)
 
+        self._validate_layer_sampling(z_nm, region_indices, regions, dz_used)
+
         return RectilinearMesh(x_nm=x_nm, z_nm=z_nm, region_indices=region_indices, regions=regions)
 
     @staticmethod
@@ -96,6 +99,40 @@ class CrossSectionMesher:
                 return idx
         # default to last region (usually superstrate)
         return len(regions) - 1
+
+    def _effective_dz(self, layers: Sequence) -> float:
+        min_thickness = min(layer.thickness_nm for layer in layers)
+        if min_thickness <= 0:
+            raise MeshingError("Layers must have positive thickness.")
+        dz_used = float(self.dz_nm)
+        while dz_used > min_thickness / 2:
+            dz_used /= 2
+            if dz_used < 1e-3:
+                break
+        return dz_used
+
+    def _validate_layer_sampling(
+        self,
+        z_nm: np.ndarray,
+        region_indices: np.ndarray,
+        regions: Sequence[CrossSectionRegion],
+        dz_used: float,
+    ) -> None:
+        for idx, region in enumerate(regions):
+            layer = region.layer
+            if not (np.isfinite(layer.z_min_nm) and np.isfinite(layer.z_max_nm)):
+                continue
+            mask_rows = (z_nm >= layer.z_min_nm) & (z_nm < layer.z_max_nm)
+            if not np.any(mask_rows):
+                raise MeshingError(
+                    f"Layer '{layer.name}' (thickness {layer.thickness_nm} nm) is not sampled by dz={dz_used:.3f} nm. "
+                    "Reduce 'dz_nm' or adjust layer definition."
+                )
+            if not np.any(region_indices[mask_rows] == idx):
+                raise MeshingError(
+                    f"Layer '{layer.name}' is present in geometry but no mesh cells were assigned. "
+                    "Refine the vertical mesh or check material widths."
+                )
 
 
 __all__ = ["RectilinearMesh", "CrossSectionMesher", "MeshingError"]
